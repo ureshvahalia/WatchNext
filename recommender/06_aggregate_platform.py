@@ -19,6 +19,7 @@ Usage:
   python recommender/06_aggregate_platform.py
 """
 import json
+import os
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -33,8 +34,10 @@ from _common import (
     load_matches, save_json,
 )
 
-PLATFORM_CACHE = Path(__file__).parent / "cache" / "platform_recs.json"
-OUT_FILE       = Path(__file__).parent.parent / "output" / "platform_recommendations.xlsx"
+_HOME          = os.environ.get('WATCHNEXT_HOME')
+_REC_DIR       = (Path(_HOME) / "recommender") if _HOME else Path(__file__).parent
+PLATFORM_CACHE = _REC_DIR / "cache" / "platform_recs.json"
+OUT_FILE       = (Path(_HOME) / "output" / "platform_recommendations.xlsx") if _HOME else Path(__file__).parent.parent / "output" / "platform_recommendations.xlsx"
 FILTER_THRESHOLD = 90
 MAX_SOURCES_INLINE = 20
 

@@ -185,7 +185,7 @@ watch_history.xlsx
 ## File Layout
 
 ```
-AmazonHistory/
+WatchNext/
 ├── scraper.py                          # Amazon Prime scraper
 ├── consolidate.py                      # Merge + output watch_history.xlsx
 ├── run.bat                             # Entry point for all steps

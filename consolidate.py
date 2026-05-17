@@ -13,6 +13,7 @@ recent watch date.
 """
 
 import csv
+import os
 import sys
 from datetime import date, datetime
 from pathlib import Path
@@ -44,7 +45,7 @@ def _newer(a: date | str, b: date | str) -> date | str:
     return a if isinstance(a, date) else b
 
 
-PROJECT_DIR     = Path(__file__).parent
+PROJECT_DIR     = Path(os.environ['WATCHNEXT_HOME']) if 'WATCHNEXT_HOME' in os.environ else Path(__file__).parent
 OUTPUT_DIR      = PROJECT_DIR / "output"
 FUZZY_THRESHOLD = 90   # 0-100; token_sort_ratio handles word-order differences
 

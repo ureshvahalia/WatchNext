@@ -9,7 +9,7 @@ import requests
 from thefuzz import fuzz
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-ROOT           = Path(__file__).parent.parent
+ROOT           = Path(os.environ['WATCHNEXT_HOME']) if 'WATCHNEXT_HOME' in os.environ else Path(__file__).parent.parent
 WATCH_FILE     = ROOT / "output" / "watch_history.xlsx"
 MATCHES_FILE   = ROOT / "recommender" / "cache" / "tmdb_matches.json"
 RECS_FILE      = ROOT / "recommender" / "cache" / "recs_raw.json"
@@ -36,7 +36,7 @@ def get_api_key() -> str:
     key = os.environ.get("TMDB_API_KEY", "").strip()
     if key:
         return key
-    env_file = Path(__file__).parent / ".env"
+    env_file = ROOT / "recommender" / ".env"
     if env_file.exists():
         for line in env_file.read_text(encoding="utf-8").splitlines():
             line = line.strip()

@@ -22,6 +22,7 @@ Usage:
   python recommender/01_match_tmdb.py --reset
 """
 import json
+import os
 import re
 import sys
 import time
@@ -48,7 +49,8 @@ _PLATFORM_SUFFIX = re.compile(
     r'\)\s*$',
     re.IGNORECASE,
 )
-CONFLICTS_FILE  = Path(__file__).parent / "cache" / "match_conflicts.json"
+_REC_DIR        = (Path(os.environ['WATCHNEXT_HOME']) / "recommender") if 'WATCHNEXT_HOME' in os.environ else Path(__file__).parent
+CONFLICTS_FILE  = _REC_DIR / "cache" / "match_conflicts.json"
 
 
 # ── Title cleaning ────────────────────────────────────────────────────────────

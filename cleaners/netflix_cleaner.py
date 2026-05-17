@@ -16,10 +16,11 @@ Writes output/netflix_clean.csv
 
 import csv
 import re
+import os
 import sys
 from pathlib import Path
 
-PROJECT_DIR = Path(__file__).parent.parent
+PROJECT_DIR = Path(os.environ['WATCHNEXT_HOME']) if 'WATCHNEXT_HOME' in os.environ else Path(__file__).parent.parent
 OUTPUT_DIR  = PROJECT_DIR / "output"
 
 

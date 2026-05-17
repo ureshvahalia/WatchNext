@@ -29,6 +29,7 @@ Usage:
 """
 import asyncio
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -41,8 +42,9 @@ from thefuzz import fuzz
 sys.path.insert(0, str(Path(__file__).parent))
 from _common import WATCH_FILE, save_json
 
-PROJECT_DIR   = Path(__file__).parent.parent
-CACHE_FILE    = Path(__file__).parent / "cache" / "platform_recs.json"
+PROJECT_DIR   = Path(os.environ['WATCHNEXT_HOME']) if 'WATCHNEXT_HOME' in os.environ else Path(__file__).parent.parent
+_REC_DIR      = (Path(os.environ['WATCHNEXT_HOME']) / "recommender") if 'WATCHNEXT_HOME' in os.environ else Path(__file__).parent
+CACHE_FILE    = _REC_DIR / "cache" / "platform_recs.json"
 DEBUG_DIR     = PROJECT_DIR / "output" / "debug"
 NF_SESSION    = PROJECT_DIR / ".session" / "netflix"
 AMZ_SESSION   = PROJECT_DIR / ".session"
