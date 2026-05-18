@@ -50,43 +50,66 @@ jobs:
       - name: Build
         run: pyinstaller watchnext.spec
 
-      - name: Import signing certificate
+      - name: Import certificates
         env:
           MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
           MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_INSTALLER_CERT_P12: ${{ secrets.MACOS_INSTALLER_CERT_P12 }}
+          MACOS_INSTALLER_CERT_PASSWORD: ${{ secrets.MACOS_INSTALLER_CERT_PASSWORD }}
         run: |
           echo "$MACOS_CERT_P12" | tr -d ' \n\r' | base64 --decode > cert.p12
+          echo "$MACOS_INSTALLER_CERT_P12" | tr -d ' \n\r' | base64 --decode > installer_cert.p12
           security create-keychain -p "" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
           security import cert.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security import installer_cert.p12 -k build.keychain -P "$MACOS_INSTALLER_CERT_PASSWORD" -T /usr/bin/pkgbuild -T /usr/bin/productbuild
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
 
       - name: Sign binary
         run: |
-          IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | awk '{print $2}')
+          APP_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | awk '{print $2}')
           codesign --deep --force --verify --verbose \
-            --sign "$IDENTITY" \
+            --sign "$APP_IDENTITY" \
             --options runtime \
             --entitlements entitlements.plist \
             dist/WatchNext
 
-      - name: Package
-        run: zip -j dist/WatchNext-mac.zip dist/WatchNext
+      - name: Build pkg
+        run: |
+          mkdir -p pkg_root/usr/local/bin
+          cp dist/WatchNext pkg_root/usr/local/bin/watchnext
+          pkgbuild \
+            --root pkg_root \
+            --identifier com.vahalia.watchnext \
+            --version "${GITHUB_REF_NAME#v}" \
+            --install-location / \
+            WatchNext-unsigned.pkg
 
-      - name: Notarize
+      - name: Sign pkg
+        run: |
+          INSTALLER_IDENTITY=$(security find-identity -v build.keychain | grep "Developer ID Installer" | head -1 | awk '{print $2}')
+          productbuild \
+            --sign "$INSTALLER_IDENTITY" \
+            --package WatchNext-unsigned.pkg \
+            WatchNext-mac.pkg
+
+      - name: Notarize pkg
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun notarytool submit dist/WatchNext-mac.zip \
+          xcrun notarytool submit WatchNext-mac.pkg \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
             --wait
 
+      - name: Staple pkg
+        run: xcrun stapler staple WatchNext-mac.pkg
+
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/WatchNext-mac.zip
+          files: WatchNext-mac.pkg
