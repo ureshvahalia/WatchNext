@@ -20,8 +20,10 @@ A self-contained, packaged tool that anyone can run to:
 | Amazon cleaner | `cleaners/amazon_cleaner.py` | Done — deduplicates by title then by extracted name, classifies Movie/Series, strips season suffix |
 | Netflix cleaner | `cleaners/netflix_cleaner.py` | Done — deduplicates by Netflix URL then by name, classifies by colon-count + 3 name-extraction rules |
 | Consolidator | `consolidate.py` | Done — fuzzy-merges both lists (token_sort_ratio ≥ 90, type must match), outputs `watch_history.xlsx` with clickable URLs |
-| Runner | `run.bat Prime / Netflix / Process / (none)` | Done |
-| Setup | `setup.bat` | Done |
+| Runner (dev) | `run.bat Prime / Netflix / Process / (none)` | Done |
+| Runner (packaged) | `main.py` — interactive menu + `full` end-to-end mode | Done |
+| Setup (dev) | `setup.bat` | Done |
+| Packaging | PyInstaller + GitHub Actions → `WatchNext.exe` / `WatchNext-mac.pkg` | Done |
 
 **Output:** `output/watch_history.xlsx`
 Columns: `Type | Name | source | url (hyperlink) | last_watched`
@@ -186,11 +188,17 @@ watch_history.xlsx
 
 ```
 WatchNext/
+├── main.py                             # Packaged entry point — interactive menu + CLI
+├── watchnext.spec                      # PyInstaller build spec
+├── entitlements.plist                  # macOS hardened runtime entitlements
 ├── scraper.py                          # Amazon Prime scraper
 ├── consolidate.py                      # Merge + output watch_history.xlsx
-├── run.bat                             # Entry point for all steps
-├── setup.bat                           # One-time venv + pip install
+├── run.bat                             # Dev entry point for all steps
+├── setup.bat                           # Dev one-time venv + pip install
 ├── requirements.txt
+├── .github/
+│   └── workflows/
+│       └── build.yml                   # CI: builds + signs + notarizes + publishes releases
 ├── scrapers/
 │   └── netflix_scraper.py
 ├── cleaners/
@@ -204,7 +212,7 @@ WatchNext/
 │   ├── 04_rate_and_refine.py
 │   ├── 05_scrape_platform_recs.py
 │   ├── 06_aggregate_platform.py
-│   ├── .env                            # TMDB_API_KEY (gitignored)
+│   ├── .env                            # TMDB_API_KEY (gitignored; baked into binary at build time)
 │   └── cache/
 │       ├── tmdb_matches.json
 │       ├── recs_raw.json
@@ -215,6 +223,13 @@ WatchNext/
     └── platform_recommendations.xlsx  # Phase 3 output
 ```
 
+### Packaged app data locations
+
+| Platform | Data directory |
+|---|---|
+| Windows | Folder containing `WatchNext.exe` |
+| macOS | `~/WatchNext/` |
+
 ---
 
-*Last updated: 2026-05-15*
+*Last updated: 2026-05-18*

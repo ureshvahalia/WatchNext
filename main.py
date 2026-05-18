@@ -10,6 +10,11 @@ from pathlib import Path
 # ── Project root ───────────────────────────────────────────────────────────────
 # In a PyInstaller bundle, write output to a user-writable location, not the temp dir.
 # Must be set before any local module imports (they read this env var at import time).
+# TMDB API key baked in at build time by CI (empty in source — never commit a real key here)
+_BUILTIN_TMDB_KEY = ""
+if _BUILTIN_TMDB_KEY:
+    os.environ.setdefault('TMDB_API_KEY', _BUILTIN_TMDB_KEY)
+
 _BUNDLE = hasattr(sys, '_MEIPASS')
 if _BUNDLE:
     if sys.platform == 'darwin':
@@ -89,6 +94,18 @@ def _all(extra):
     _process()
 
 
+def _full(extra):
+    """Run all three phases end-to-end without prompting."""
+    _banner = lambda n, t: (print(), print("=" * 60), print(f"  Step {n} — {t}"), print("=" * 60))
+    _banner("1/7", "Amazon Prime Video");    _prime(extra)
+    _banner("2/7", "Netflix");              _netflix(extra)
+    _banner("3/7", "Clean and Consolidate"); _process()
+    _banner("4/7", "Match titles to TMDB"); _match([])
+    _banner("5/7", "Fetch recommendations"); _recommend([])
+    _banner("6/7", "Re-rank with ratings"); _rate()
+    _banner("7/7", "Platform recommendations"); _platform_recs([])
+
+
 # ── Phase 2 ───────────────────────────────────────────────────────────────────
 def _match(extra):
     _run('recommender/01_match_tmdb.py', extra)
@@ -116,6 +133,7 @@ def _platform_recs(extra):
 # ── CLI routing (mirrors run.bat) ─────────────────────────────────────────────
 def _cli(cmd: str, extra: list):
     dispatch = {
+        'full':            lambda: _full(extra),
         'prime':           lambda: _prime(extra),
         'netflix':         lambda: _netflix(extra),
         'process':         _process,
@@ -139,13 +157,15 @@ _MENU = """\
   WatchNext
 ============================================================
 
+  a  Run everything end-to-end  (all phases, no prompts)
+
   Phase 1 — Watch History
-    0  Run all three steps  (recommended)
+    0  Run all three steps
     1  Scrape Amazon Prime Video
     2  Scrape Netflix
     3  Clean and consolidate
 
-  Phase 2 — TMDB Recommendations  (requires TMDB API key)
+  Phase 2 — TMDB Recommendations
     4  Match titles to TMDB
     5  Fetch and rank recommendations
     6  Re-rank using your ratings
@@ -162,6 +182,7 @@ def _menu():
     choice = input(_MENU).strip().lower()
     print()
     actions = {
+        'a': lambda: _full([]),
         '0': lambda: _all([]),
         '1': lambda: _prime([]),
         '2': lambda: _netflix([]),
