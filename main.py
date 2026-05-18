@@ -29,8 +29,8 @@ def _ensure_browsers():
         print("This takes a minute or two and only happens once.\n")
         try:
             from playwright._impl._driver import compute_driver_executable
-            driver = compute_driver_executable()
-            result = subprocess.run([str(driver), "install", "chromium"])
+            node, cli = compute_driver_executable()
+            result = subprocess.run([str(node), str(cli), "install", "chromium"])
             if result.returncode != 0:
                 print("\nERROR: Could not install Chromium. Check your internet connection.")
                 sys.exit(1)

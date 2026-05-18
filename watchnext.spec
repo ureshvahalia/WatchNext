@@ -9,6 +9,10 @@
 #   Windows:  dist/WatchNext.exe
 #   macOS:    dist/WatchNext
 
+from pathlib import Path
+import playwright as _pw
+_pw_driver = str(Path(_pw.__file__).parent / 'driver')
+
 a = Analysis(
     ['main.py'],
     pathex=[],
@@ -21,6 +25,8 @@ a = Analysis(
         ('cleaners',      'cleaners'),
         ('scrapers',      'scrapers'),
         ('recommender',   'recommender'),
+        # Playwright driver (Node.js binary + CLI) needed to install browsers at runtime.
+        (_pw_driver,      'playwright/driver'),
     ],
     hiddenimports=[
         'playwright',
