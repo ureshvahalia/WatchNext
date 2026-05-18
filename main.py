@@ -56,8 +56,7 @@ def _ensure_browsers():
 
 # ── Script runner ──────────────────────────────────────────────────────────────
 def _run(rel_path: str, argv: list = ()):
-    if argv:
-        sys.argv = ['WatchNext', *argv]
+    sys.argv = ['WatchNext', *argv]
     runpy.run_path(str(_BASE / rel_path), run_name='__main__')
 
 
