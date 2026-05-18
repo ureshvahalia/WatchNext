@@ -49,7 +49,9 @@ Double-click `WatchNext.exe` (Windows) or run `./WatchNext` in Terminal (macOS).
 
 Run Phase 1 first. It opens a browser window for each platform — log in normally and the scraper takes it from there. Your login session is saved so subsequent runs skip the login step.
 
-Output files are written to an `output/` folder next to the executable.
+**Windows:** output files are written to an `output/` folder next to the `.exe`.
+
+**macOS:** output files are written to `~/WatchNext/output/` (a `WatchNext` folder in your home directory).
 
 ## Command-line usage
 

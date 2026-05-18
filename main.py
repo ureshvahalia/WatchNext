@@ -8,11 +8,17 @@ import sys
 from pathlib import Path
 
 # ── Project root ───────────────────────────────────────────────────────────────
-# In a PyInstaller bundle, write output next to the executable, not the temp dir.
+# In a PyInstaller bundle, write output to a user-writable location, not the temp dir.
 # Must be set before any local module imports (they read this env var at import time).
 _BUNDLE = hasattr(sys, '_MEIPASS')
 if _BUNDLE:
-    os.environ.setdefault('WATCHNEXT_HOME', str(Path(sys.executable).parent))
+    if sys.platform == 'darwin':
+        # Binary installed to /usr/local/bin (not writable) — use ~/WatchNext instead
+        _data_dir = Path.home() / 'WatchNext'
+    else:
+        # Windows: binary lives in a user-chosen folder; write data alongside it
+        _data_dir = Path(sys.executable).parent
+    os.environ.setdefault('WATCHNEXT_HOME', str(_data_dir))
 
 _BASE = Path(sys._MEIPASS) if _BUNDLE else Path(__file__).parent
 
