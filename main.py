@@ -19,6 +19,7 @@ if _BUNDLE:
         # Windows: binary lives in a user-chosen folder; write data alongside it
         _data_dir = Path(sys.executable).parent
     os.environ.setdefault('WATCHNEXT_HOME', str(_data_dir))
+    _data_dir.mkdir(parents=True, exist_ok=True)
 
 _BASE = Path(sys._MEIPASS) if _BUNDLE else Path(__file__).parent
 
