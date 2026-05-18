@@ -29,13 +29,8 @@ jobs:
         env:
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: |
-          python -c "
-          import os
-          key = os.environ['TMDB_API_KEY']
-          with open('main.py', 'r') as f: content = f.read()
-          content = content.replace('_BUILTIN_TMDB_KEY = \"\"', f'_BUILTIN_TMDB_KEY = \"{key}\"')
-          with open('main.py', 'w') as f: f.write(content)
-          "
+          $key = $env:TMDB_API_KEY
+          (Get-Content main.py -Raw).Replace('_BUILTIN_TMDB_KEY = ""', "_BUILTIN_TMDB_KEY = `"$key`"") | Set-Content main.py -NoNewline
 
       - name: Build
         run: pyinstaller watchnext.spec
