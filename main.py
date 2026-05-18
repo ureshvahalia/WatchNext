@@ -20,6 +20,8 @@ if _BUNDLE:
         _data_dir = Path(sys.executable).parent
     os.environ.setdefault('WATCHNEXT_HOME', str(_data_dir))
     _data_dir.mkdir(parents=True, exist_ok=True)
+    # Pin browser cache to a fixed location so install and runtime agree on where they are
+    os.environ.setdefault('PLAYWRIGHT_BROWSERS_PATH', str(_data_dir / '.browsers'))
 
 _BASE = Path(sys._MEIPASS) if _BUNDLE else Path(__file__).parent
 
