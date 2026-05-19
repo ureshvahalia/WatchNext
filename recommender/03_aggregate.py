@@ -2,7 +2,13 @@
 Step 3 -- Aggregate and rank recommendations.
 
 Counts how many of your watched titles recommended each candidate, then ranks
-by that frequency score (tiebreak: TMDB vote_average descending).
+by a combined score:
+
+    score = freq * log(1 + tmdb_vote_average)
+
+where freq is the raw count of source titles and log(1 + rating) blends in
+TMDB quality without letting it dominate. Titles with no recorded TMDB rating
+are treated as 5.0 (neutral midpoint) so they are not unfairly zeroed out.
 
 Titles already in your watch history are filtered out (exact + fuzzy >= 90).
 
@@ -27,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from _common import (
     OUT_FILE, GENRE_MAP, TMDB_BASE_URL,
     load_matches, load_recs, watched_title_set, is_already_watched,
+    tmdb_score_factor,
 )
 
 MAX_SOURCES_INLINE = 20   # max source titles listed in the "Recommended By" cell
@@ -91,7 +98,7 @@ def main():
 
     ranked = sorted(
         [(tid, v) for tid, v in scores.items() if v["data"]],
-        key=lambda x: (-x[1]["count"], -(x[1]["data"].get("vote_average") or 0)),
+        key=lambda x: -(x[1]["count"] * tmdb_score_factor(x[1]["data"].get("vote_average"))),
     )
     # Build rank lookup for the Audit sheet
     rank_of = {tid: rank for rank, (tid, _) in enumerate(ranked, 1)}
@@ -104,7 +111,7 @@ def main():
     ws = wb.active
     ws.title = "Recommendations"
 
-    headers = ["Rank", "Title", "Type", "Score", "TMDB Rating",
+    headers = ["Rank", "Title", "Type", "Freq", "Score", "TMDB Rating",
                "Genres", "Year", "TMDB Link", "Recommended By"]
     ws.append(headers)
     for cell in ws[1]:
@@ -121,9 +128,11 @@ def main():
             sources_str = " | ".join(sources)
         else:
             sources_str = " | ".join(sources[:MAX_SOURCES_INLINE]) + f"  … (+{len(sources) - MAX_SOURCES_INLINE} more)"
+        vote_avg = d.get("vote_average") or 0
+        score    = round(v["count"] * tmdb_score_factor(vote_avg), 2)
         ws.append([
-            rank, d["title"], mtype, v["count"],
-            round(d.get("vote_average") or 0, 1),
+            rank, d["title"], mtype, v["count"], score,
+            round(vote_avg, 1),
             genres, d.get("year", ""), link, sources_str,
         ])
 

@@ -6,10 +6,17 @@ Applies weight = rating / 3.0 to each source title's contributions:
   5 stars -> 1.67x  (strong signal: find me more like this)
   3 stars -> 1.00x  (neutral, same as unrated)
   1 star  -> 0.33x  (weak signal: soft-suppress similar titles)
-Unrated titles default to weight 1.0.
+Unrated titles default to weight 1.0 (equivalent to a 3-star rating).
 
-Rewrites the Recommendations sheet in output/recommendations.xlsx,
-adding a 'Weighted Score' column. The Unmatched sheet is preserved.
+Final ranking uses a combined score that also incorporates TMDB quality:
+
+    score = weighted_sum * log(1 + tmdb_vote_average)
+
+where weighted_sum = Σ (your_rating_of_source / 3.0).
+
+Rewrites the Recommendations sheet in output/recommendations.xlsx.
+Columns: Freq (raw source count), Wtd Score (sum of weights), Score (combined).
+The Unmatched sheet is preserved.
 
 Usage:
   python recommender/04_rate_and_refine.py
@@ -25,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from _common import (
     WATCH_FILE, OUT_FILE, GENRE_MAP, TMDB_BASE_URL,
     load_matches, load_recs, watched_title_set, is_already_watched,
+    tmdb_score_factor,
 )
 
 
@@ -92,7 +100,7 @@ def main():
 
     ranked = sorted(
         [(tid, v) for tid, v in weighted.items() if v["data"]],
-        key=lambda x: (-(x[1]["weighted_score"]), -(x[1]["data"].get("vote_average") or 0)),
+        key=lambda x: -(x[1]["weighted_score"] * tmdb_score_factor(x[1]["data"].get("vote_average"))),
     )
 
     # Preserve the Unmatched sheet from the existing file if it exists.
@@ -101,21 +109,23 @@ def main():
         del wb["Recommendations"]
     ws = wb.create_sheet("Recommendations", 0)
 
-    headers = ["Rank", "Title", "Type", "Score", "Weighted Score", "TMDB Rating", "Genres", "Year", "TMDB Link"]
+    headers = ["Rank", "Title", "Type", "Freq", "Wtd Score", "Score", "TMDB Rating", "Genres", "Year", "TMDB Link"]
     ws.append(headers)
     for cell in ws[1]:
         cell.font = Font(bold=True)
 
     for rank, (tid, v) in enumerate(ranked, 1):
-        d      = v["data"]
-        genres = ", ".join(GENRE_MAP.get(gid, str(gid)) for gid in d.get("genre_ids", []))
-        mtype  = d.get("type", "")
-        seg    = "movie" if mtype == "Movie" else "tv"
-        link   = f"{TMDB_BASE_URL}/{seg}/{tid}"
+        d        = v["data"]
+        genres   = ", ".join(GENRE_MAP.get(gid, str(gid)) for gid in d.get("genre_ids", []))
+        mtype    = d.get("type", "")
+        seg      = "movie" if mtype == "Movie" else "tv"
+        link     = f"{TMDB_BASE_URL}/{seg}/{tid}"
+        vote_avg = d.get("vote_average") or 0
+        score    = round(v["weighted_score"] * tmdb_score_factor(vote_avg), 2)
         ws.append([
             rank, d["title"], mtype, v["count"],
-            round(v["weighted_score"], 2),
-            round(d.get("vote_average") or 0, 1),
+            round(v["weighted_score"], 2), score,
+            round(vote_avg, 1),
             genres, d.get("year", ""), link,
         ])
 

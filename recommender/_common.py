@@ -1,5 +1,6 @@
 """Shared utilities for the recommendation pipeline."""
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -133,3 +134,13 @@ def load_recs() -> dict:
 def save_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def tmdb_score_factor(vote_avg) -> float:
+    """log(1 + v) multiplier for blending TMDB rating into a frequency score.
+
+    Titles with no recorded rating (0 or None) use 5.0 as a neutral midpoint
+    rather than being zeroed out — absent data != bad quality.
+    """
+    v = vote_avg if vote_avg else 5.0
+    return math.log(1 + v)

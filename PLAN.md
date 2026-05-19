@@ -74,59 +74,56 @@ Sheets: `Recommendations | Audit | No_Recs`
 
 ### Phase 2 (TMDB-based)
 
-**Base score (`03_aggregate.py`):**
+**Base score (`03_aggregate.py`, columns: Freq + Score):**
 ```
-score[candidate] = count of watched titles that recommended it
-sort key: (-score, -vote_average)   ← vote_average is tiebreaker only
+freq[candidate]  = count of watched titles that recommended it
+score[candidate] = freq * log(1 + tmdb_vote_average)
+
+Titles with no TMDB rating (0 or None) use 5.0 as a neutral midpoint
+so they are not zeroed out — absent data ≠ bad quality.
 ```
 
-**Weighted score (`04_rate_and_refine.py`, requires user ratings):**
+**Weighted score (`04_rate_and_refine.py`, columns: Freq + Wtd Score + Score):**
 ```
-weighted_score[candidate] = Σ (rating_of_source / 3.0)
-                              for each source that recommended the candidate
+wtd_score[candidate] = Σ (your_rating_of_source / 3.0)
+                         for each source that recommended the candidate
 weight mapping: 5★ → 1.67x  |  3★ → 1.0x (neutral)  |  1★ → 0.33x
-unrated titles default to weight 1.0 (as if rated 3★)
-sort key: (-weighted_score, -vote_average)
+unrated titles default to 3★ (weight 1.0)
+
+score[candidate] = wtd_score * log(1 + tmdb_vote_average)
+```
+
+Both pipelines sort by `score` descending. `Freq`/`Wtd Score` are shown for transparency.
+
+**To rerun with new scoring (no need to re-fetch from TMDB):**
+```
+run.bat Recommend   ← reruns Step 3; Step 2 skips instantly (all cached)
+run.bat Rate        ← reruns Step 4 (only if Your Rating column is filled)
 ```
 
 ### Phase 3 (Platform-based)
 
 ```
 score[candidate] = count of watched titles whose platform page surfaced it
-sort key: -score  (no TMDB rating fallback — metadata not always available)
+sort key: -score  (TMDB metadata not always available for platform titles)
 ```
 
 ---
 
-## Upcoming — Scoring Improvements
+## Completed Scoring Improvements
 
-Brainstormed on 2026-05-15. Implementing ideas 4 and 6 next.
+### ✅ Idea 4 — TMDB rating as multiplicative factor (2026-05-18)
 
-### Idea 4 — TMDB rating as multiplicative factor (not just tiebreaker)
+**Decision:** Option A — `score = freq * log(1 + vote_average)`.
+Titles with 0/None rating use 5.0 neutral fallback instead of being zeroed.
+Implemented in `_common.py` (`tmdb_score_factor()`), `03_aggregate.py`, `04_rate_and_refine.py`.
 
-**Problem with current design:** TMDB `vote_average` only breaks ties. A title with count=5 and rating=9.5 ranks identically to one with count=5 and rating=4.0 — the tiebreaker only matters when counts collide.
+### ✅ Idea 6 — Source-weighted voting (2026-05-18)
 
-**Proposed change:** Blend the TMDB rating multiplicatively into the base score so a consistently high-rated candidate naturally ranks above a mediocre one at the same frequency count.
-
-**Affects:** `03_aggregate.py` (base score), `04_rate_and_refine.py` (weighted score), and `06_aggregate_platform.py` where TMDB metadata is available.
-
-**Formula decision needed before implementing:**
-- Option A: `score = count * log(1 + vote_average)`  — compresses large rating differences; titles with no rating (0.0) get score=0 regardless of count (probably too harsh)
-- Option B: `score = count * (0.5 + vote_average / 20.0)` — linear blend; a 10-rated title is 1.5× a 0-rated title; a 7-rated title is ~0.85× baseline; 0-rated titles still score (at 0.5× count)
-- Option C: `score = count * max(0.5, vote_average / 10.0)` — floor at 0.5× so unrated/low-rated titles are penalized but not zeroed
-- Option D: Keep `vote_average` as tiebreaker but only sort by it within a ±1 count band (e.g., treat counts 5 and 6 as "close enough" and let rating decide)
-
-### Idea 6 — Source-weighted voting (rating-weighted score)
-
-**Current design** already implements basic version in `04_rate_and_refine.py` (`weight = rating / 3.0`, unrated = 1.0).
-
-**Refinement to consider:** The normalization base (÷3.0) makes 3★ neutral and allows >1.0 weights. An alternative is `rating / 5.0` (max=1.0, no amplification above baseline) which is more conservative.
-
-**Decision:** Keep `÷ 3.0` (current) or change to `÷ 5.0`?
-- `÷ 3.0`: 5★ sources amplify above the unrated baseline — highly-liked titles punch above their weight. More aggressive personalization.
-- `÷ 5.0`: All ratings suppress or equal the unrated baseline — a 5★ source contributes the same as an unrated one, lower ratings discount. Safer but less differentiating.
-
-**Also consider:** Should ratings apply to the platform recs pipeline (`06_aggregate_platform.py`) as a new step, or stay TMDB-only?
+**Decision:** `weight = rating / 3.0`, unrated = 3★ (weight 1.0), scale 1–5.
+3★ is the neutral baseline; higher ratings amplify, lower ones discount.
+Combined with Idea 4: final `score = wtd_score * log(1 + tmdb_vote_average)`.
+Implemented in `04_rate_and_refine.py`.
 
 ---
 
@@ -162,12 +159,12 @@ watch_history.xlsx
       │
       ▼
 [Step 3] recommender/03_aggregate.py
-      │  Frequency score; tiebreak by TMDB rating
+      │  score = freq * log(1 + tmdb_vote_average)
       │  → output/recommendations.xlsx  (Phase 2a, base score)
       │
       ▼  (optional, requires Your Rating column filled in)
 [Step 4] recommender/04_rate_and_refine.py
-      │  Weighted score = Σ (your_rating / 3.0) per source
+      │  score = Σ(rating/3.0) * log(1 + tmdb_vote_average)
       │  → output/recommendations.xlsx  (Phase 2b, overwrites Recommendations sheet)
       │
       │
