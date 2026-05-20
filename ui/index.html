@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WatchNext</title>
+<style>
+/* ── Reset & base ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: #141414;
+  color: #e5e5e5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header {
+  flex-shrink: 0;
+  background: #000;
+  border-bottom: 1px solid #2a2a2a;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+header h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #e50914;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+#search {
+  background: #1f1f1f;
+  border: 1px solid #3a3a3a;
+  color: #e5e5e5;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  width: 200px;
+  outline: none;
+}
+#search:focus { border-color: #555; }
+#search::placeholder { color: #666; }
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #aaa;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 12px;
+  user-select: none;
+}
+.toggle-label input { accent-color: #e50914; cursor: pointer; }
+#status { margin-left: auto; font-size: 11px; color: #666; min-width: 100px; text-align: right; }
+#precompute-notice {
+  font-size: 11px;
+  color: #f5a623;
+  display: none;
+}
+
+/* ── Main layout: two panels ─────────────────────────────────────────────── */
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+.panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+.panel + .panel { border-left: 1px solid #2a2a2a; }
+
+.panel-header {
+  flex-shrink: 0;
+  padding: 10px 16px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #777;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid #222;
+  background: #141414;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-count { color: #555; font-weight: 400; }
+
+.card-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.card-list::-webkit-scrollbar { width: 5px; }
+.card-list::-webkit-scrollbar-track { background: transparent; }
+.card-list::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card {
+  display: flex;
+  gap: 10px;
+  background: #1c1c1c;
+  border: 1px solid #252525;
+  border-radius: 6px;
+  padding: 8px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.card:hover { background: #222; border-color: #333; }
+.card.just-rated { border-color: #2a4a2a; }
+
+/* Poster */
+.poster-wrap {
+  flex-shrink: 0;
+  width: 56px;
+  height: 84px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #2a2a2a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.poster-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.poster-wrap.no-image::after {
+  content: "🎬";
+  font-size: 22px;
+  opacity: 0.3;
+}
+.poster-wrap.clickable { cursor: pointer; }
+.poster-wrap.clickable:hover img { opacity: 0.8; }
+
+/* Card body */
+.card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.card-meta { font-size: 11px; color: #888; }
+.card-overview {
+  font-size: 11px;
+  color: #777;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Type badge */
+.badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+  margin-left: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.badge-movie  { background: #7b0006; color: #ffbaba; }
+.badge-series { background: #0a3d6b; color: #a8d0ff; }
+
+/* Genre tags */
+.genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}
+.genre-tag {
+  font-size: 9px;
+  background: #2a2a2a;
+  border: 1px solid #333;
+  color: #999;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* Score line */
+.score-line {
+  font-size: 11px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.score-val { color: #f5a623; font-weight: 600; }
+.tmdb-star { color: #f5c518; }
+
+/* Watch link */
+.watch-link {
+  display: inline-block;
+  font-size: 11px;
+  color: #e50914;
+  text-decoration: none;
+  margin-top: 2px;
+  width: fit-content;
+}
+.watch-link:hover { text-decoration: underline; }
+
+/* Rank badge */
+.rank-badge {
+  flex-shrink: 0;
+  width: 26px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #444;
+  text-align: right;
+  align-self: center;
+  padding-right: 2px;
+}
+
+/* ── Star rating ─────────────────────────────────────────────────────────── */
+.stars {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-top: 4px;
+}
+.star {
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  color: #3a3a3a;
+  transition: color 0.1s;
+  user-select: none;
+}
+.star.filled   { color: #f5a623; }
+.star.hovering { color: #f5c518; }
+.clear-rating {
+  font-size: 11px;
+  color: #555;
+  cursor: pointer;
+  margin-left: 6px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid #333;
+  line-height: 1.4;
+  display: none;
+}
+.clear-rating:hover { color: #e50914; border-color: #e50914; }
+.clear-rating.visible { display: inline-block; }
+
+/* ── Empty / loading states ──────────────────────────────────────────────── */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  gap: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  line-height: 1.6;
+}
+.empty-state .icon { font-size: 32px; opacity: 0.4; }
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #333;
+  border-top-color: #666;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>WatchNext</h1>
+  <input type="text" id="search" placeholder="Search watched titles…" autocomplete="off">
+  <label class="toggle-label">
+    <input type="checkbox" id="unrated-only" checked>
+    Unrated only
+  </label>
+  <span id="precompute-notice"><span class="spinner"></span>Building recommendations…</span>
+  <span id="status"></span>
+</header>
+
+<div id="main">
+  <!-- Left: rate watched titles -->
+  <div class="panel" id="left-panel">
+    <div class="panel-header">
+      Rate Watched Titles
+      <span class="panel-count" id="watched-count"></span>
+    </div>
+    <div class="card-list" id="watched-list">
+      <div class="empty-state"><span class="spinner"></span> Loading…</div>
+    </div>
+  </div>
+
+  <!-- Right: recommendations -->
+  <div class="panel" id="right-panel">
+    <div class="panel-header">
+      Your Recommendations
+      <span class="panel-count" id="recs-count"></span>
+    </div>
+    <div class="card-list" id="recs-list">
+      <div class="empty-state"><span class="spinner"></span> Loading…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let watchedItems = [];          // full list from /api/watched
+let recsItems    = [];          // top-50 from /api/recommendations
+const enrichCache = {};         // tmdb_id (number) -> {poster_url, overview, watch_url}
+
+// Enrich queue: items waiting to be fetched, processed in batches of 20
+const enrichQueue = [];
+let enrichRunning = false;
+
+// ── Bootstrap ─────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const [watched, recs] = await Promise.all([
+      apiFetch('/api/watched'),
+      apiFetch('/api/recommendations'),
+    ]);
+    watchedItems = watched;
+    recsItems    = recs;
+  } catch (e) {
+    showError('Could not connect to the WatchNext server.');
+    return;
+  }
+
+  renderWatched();
+  renderRecs();
+  queueEnrich(visibleItems());
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function apiFetch(url, opts) {
+  const r = await fetch(url, opts);
+  if (!r.ok) throw new Error(`${url} → ${r.status}`);
+  return r.json();
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function filteredWatched() {
+  const q       = document.getElementById('search').value.toLowerCase().trim();
+  const unrated = document.getElementById('unrated-only').checked;
+  return watchedItems.filter(item => {
+    if (unrated && item.rating !== null) return false;
+    if (q && !item.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+// ── Render watched ────────────────────────────────────────────────────────────
+function renderWatched(preserveScroll) {
+  const list  = document.getElementById('watched-list');
+  const items = filteredWatched();
+
+  document.getElementById('watched-count').textContent =
+    items.length ? `${items.length} title${items.length !== 1 ? 's' : ''}` : '';
+
+  if (!items.length) {
+    const noRated = document.getElementById('unrated-only').checked;
+    list.innerHTML = `<div class="empty-state">
+      <span class="icon">⭐</span>
+      ${noRated
+        ? 'All matched titles have been rated.<br>Uncheck "Unrated only" to see them.'
+        : 'No matched titles found.<br>Run phase 1 → 4 first.'}
+    </div>`;
+    return;
+  }
+
+  const scrollTop = preserveScroll ? list.scrollTop : 0;
+  list.innerHTML  = items.map(item => watchedCard(item)).join('');
+  list.scrollTop  = scrollTop;
+  attachStarHandlers();
+  observePosters(list);
+}
+
+function watchedCard(item) {
+  const info   = enrichCache[item.tmdb_id] || {};
+  const poster = info.poster_url;
+  const badge  = typeBadge(item.type);
+  const stars  = [1,2,3,4,5].map(n => {
+    const cls = item.rating && n <= item.rating ? 'filled' : '';
+    return `<span class="star ${cls}" data-name="${encodeURIComponent(item.name)}" data-val="${n}">★</span>`;
+  }).join('');
+  const clearBtn = `<span class="clear-rating${item.rating ? ' visible' : ''}"
+    data-name="${encodeURIComponent(item.name)}" title="Clear rating">✕</span>`;
+
+  return `<div class="card${item.rating ? ' just-rated' : ''}" id="wcard-${item.tmdb_id}">
+    <div class="poster-wrap${poster ? '' : ' no-image'}" data-tmdbid="${item.tmdb_id}" data-type="${item.type}">
+      ${poster ? `<img src="${esc(poster)}" alt="" loading="lazy">` : ''}
+    </div>
+    <div class="card-body">
+      <div class="card-title">${esc(item.name)}${badge}</div>
+      <div class="card-meta">${item.year || ''}${info.overview ? '' : ''}</div>
+      ${info.overview ? `<div class="card-overview">${esc(info.overview)}</div>` : ''}
+      <div class="stars">${stars}${clearBtn}</div>
+    </div>
+  </div>`;
+}
+
+// ── Render recommendations ─────────────────────────────────────────────────────
+function renderRecs(preserveScroll) {
+  const list = document.getElementById('recs-list');
+
+  document.getElementById('recs-count').textContent =
+    recsItems.length ? `top ${recsItems.length}` : '';
+
+  if (!recsItems.length) {
+    list.innerHTML = `<div class="empty-state">
+      <span class="icon">🎬</span>
+      No recommendations yet.<br>Rate some titles on the left to see suggestions here.
+    </div>`;
+    return;
+  }
+
+  const scrollTop = preserveScroll ? list.scrollTop : 0;
+  list.innerHTML  = recsItems.map(item => recCard(item)).join('');
+  list.scrollTop  = scrollTop;
+  observePosters(list);
+}
+
+function recCard(item) {
+  const info      = enrichCache[item.tmdb_id] || {};
+  const poster    = info.poster_url;
+  const watchUrl  = info.watch_url || item.tmdb_url;
+  const badge     = typeBadge(item.type);
+  const genres    = item.genres.slice(0, 3).map(g =>
+    `<span class="genre-tag">${esc(g)}</span>`).join('');
+
+  const posterHtml = `<div class="poster-wrap${poster ? '' : ' no-image'} clickable"
+      data-tmdbid="${item.tmdb_id}" data-type="${item.type}"
+      onclick="window.open('${esc(watchUrl)}','_blank')"
+      title="Where to watch">
+    ${poster ? `<img src="${esc(poster)}" alt="" loading="lazy">` : ''}
+  </div>`;
+
+  return `<div class="card" id="rcard-${item.tmdb_id}">
+    <span class="rank-badge">#${item.rank}</span>
+    ${posterHtml}
+    <div class="card-body">
+      <div class="card-title">${esc(item.title)}${badge}</div>
+      <div class="card-meta">${item.year || ''}</div>
+      ${info.overview ? `<div class="card-overview">${esc(info.overview)}</div>` : ''}
+      <div class="genres">${genres}</div>
+      <div class="score-line">
+        <span>Score <span class="score-val">${item.score}</span></span>
+        <span><span class="tmdb-star">★</span> ${item.vote_avg}</span>
+        <span style="color:#555">× ${item.freq}</span>
+      </div>
+      <a class="watch-link" href="${esc(watchUrl)}" target="_blank">▶ Where to Watch</a>
+    </div>
+  </div>`;
+}
+
+// ── Star handlers ─────────────────────────────────────────────────────────────
+function attachStarHandlers() {
+  document.querySelectorAll('.stars').forEach(starsEl => {
+    const stars = Array.from(starsEl.querySelectorAll('.star'));
+
+    starsEl.addEventListener('mouseover', e => {
+      const s = e.target.closest('.star');
+      if (!s) return;
+      const val = parseInt(s.dataset.val);
+      stars.forEach(x => x.classList.toggle('hovering', parseInt(x.dataset.val) <= val));
+    });
+
+    starsEl.addEventListener('mouseout', e => {
+      if (!e.relatedTarget?.closest('.stars')) {
+        stars.forEach(x => x.classList.remove('hovering'));
+      }
+    });
+
+    stars.forEach(s => {
+      s.addEventListener('click', () => {
+        const name   = decodeURIComponent(s.dataset.name);
+        const newVal = parseFloat(s.dataset.val);
+        const item   = watchedItems.find(i => i.name === name);
+        const rating = (item && item.rating === newVal) ? null : newVal;  // toggle off
+        submitRating(name, rating);
+      });
+    });
+
+    starsEl.querySelectorAll('.clear-rating').forEach(btn => {
+      btn.addEventListener('click', () => {
+        submitRating(decodeURIComponent(btn.dataset.name), null);
+      });
+    });
+  });
+}
+
+// ── Rating submission ─────────────────────────────────────────────────────────
+async function submitRating(name, rating) {
+  setStatus('Saving…');
+
+  // Optimistic in-place update of stars (no full re-render = no layout shift)
+  const item = watchedItems.find(i => i.name === name);
+  if (item) {
+    item.rating = rating;
+    const tmdbId  = item.tmdb_id;
+    const card    = document.getElementById(`wcard-${tmdbId}`);
+    if (card) {
+      card.querySelectorAll('.star').forEach(s => {
+        s.classList.toggle('filled', rating !== null && parseInt(s.dataset.val) <= rating);
+        s.classList.remove('hovering');
+      });
+      const clearBtn = card.querySelector('.clear-rating');
+      if (clearBtn) clearBtn.classList.toggle('visible', rating !== null);
+      card.classList.toggle('just-rated', rating !== null);
+    }
+  }
+
+  try {
+    const recs = await apiFetch('/api/rate', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({name, rating}),
+    });
+
+    if (Array.isArray(recs)) {
+      recsItems = recs;
+      renderRecs(true);
+      queueEnrich(recsItems.map(r => ({tmdb_id: r.tmdb_id, type: r.type})));
+    } else if (recs.error) {
+      setStatus(recs.error, true);
+      return;
+    }
+  } catch (e) {
+    setStatus('Error saving rating', true);
+    return;
+  }
+
+  setStatus('');
+}
+
+// ── Poster enrichment (lazy, queued) ──────────────────────────────────────────
+function queueEnrich(items) {
+  items.forEach(item => {
+    if (!enrichCache[item.tmdb_id] && !enrichQueue.some(q => q.tmdb_id === item.tmdb_id)) {
+      enrichQueue.push(item);
+    }
+  });
+  if (!enrichRunning) drainEnrichQueue();
+}
+
+async function drainEnrichQueue() {
+  enrichRunning = true;
+  while (enrichQueue.length > 0) {
+    const batch = enrichQueue.splice(0, 20);
+    try {
+      const data = await apiFetch('/api/enrich', {
+        method:  'POST',
+        headers: {'Content-Type': 'application/json'},
+        body:    JSON.stringify({items: batch}),
+      });
+      // Merge results into cache and update any visible posters/overviews
+      Object.entries(data).forEach(([tid, info]) => {
+        enrichCache[parseInt(tid)] = info;
+        updateEnrichedCard(parseInt(tid), info);
+      });
+    } catch (_) {}
+  }
+  enrichRunning = false;
+}
+
+function updateEnrichedCard(tmdbId, info) {
+  // Update every card (watched + rec) that shows this TMDB ID
+  [`wcard-${tmdbId}`, `rcard-${tmdbId}`].forEach(id => {
+    const card = document.getElementById(id);
+    if (!card) return;
+
+    // Poster
+    const wrap = card.querySelector('.poster-wrap');
+    if (wrap && info.poster_url && !wrap.querySelector('img')) {
+      wrap.classList.remove('no-image');
+      const img = document.createElement('img');
+      img.src = info.poster_url;
+      img.alt = '';
+      img.loading = 'lazy';
+      wrap.appendChild(img);
+    }
+
+    // Overview (insert after card-meta if not already present)
+    if (info.overview) {
+      const body = card.querySelector('.card-body');
+      if (body && !body.querySelector('.card-overview')) {
+        const meta = body.querySelector('.card-meta');
+        const ov   = document.createElement('div');
+        ov.className   = 'card-overview';
+        ov.textContent = info.overview;
+        if (meta) meta.after(ov); else body.prepend(ov);
+      }
+    }
+
+    // Watch link (recs panel only — update both the poster onclick and the text link)
+    if (info.watch_url) {
+      card.querySelectorAll('a.watch-link').forEach(a => { a.href = info.watch_url; });
+      const pw = card.querySelector('.poster-wrap.clickable');
+      if (pw) pw.setAttribute('onclick', `window.open('${info.watch_url.replace(/'/g,"\\'")}','_blank')`);
+    }
+  });
+}
+
+// IntersectionObserver: enrich when a poster-wrap enters the viewport
+const observer = new IntersectionObserver(entries => {
+  const toFetch = [];
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const el = entry.target;
+    observer.unobserve(el);
+    const tid  = parseInt(el.dataset.tmdbid);
+    const type = el.dataset.type;
+    if (!enrichCache[tid]) toFetch.push({tmdb_id: tid, type});
+  });
+  if (toFetch.length) queueEnrich(toFetch);
+}, { rootMargin: '300px' });
+
+function observePosters(container) {
+  container.querySelectorAll('.poster-wrap[data-tmdbid]').forEach(el => {
+    observer.observe(el);
+  });
+}
+
+// ── Collect all currently visible items for initial enrich ───────────────────
+function visibleItems() {
+  const out = [];
+  filteredWatched().forEach(i => out.push({tmdb_id: i.tmdb_id, type: i.type}));
+  recsItems.forEach(i => out.push({tmdb_id: i.tmdb_id, type: i.type}));
+  return out;
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function typeBadge(type) {
+  if (!type) return '';
+  return type === 'Movie'
+    ? '<span class="badge badge-movie">Movie</span>'
+    : '<span class="badge badge-series">TV</span>';
+}
+
+function setStatus(msg, isError) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.style.color = isError ? '#e50914' : '#666';
+}
+
+function showError(msg) {
+  document.getElementById('watched-list').innerHTML =
+    `<div class="empty-state"><span class="icon">⚠️</span>${esc(msg)}</div>`;
+  document.getElementById('recs-list').innerHTML =
+    `<div class="empty-state"></div>`;
+}
+
+function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+document.getElementById('search').addEventListener('input', () => renderWatched());
+document.getElementById('unrated-only').addEventListener('change', () => renderWatched());
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

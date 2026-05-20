@@ -117,6 +117,9 @@ def _recommend(extra):
 def _rate():
     _run('recommender/04_rate_and_refine.py')
 
+def _compare():
+    _run('recommender/compare_scoring.py')
+
 
 # ── Phase 3 ───────────────────────────────────────────────────────────────────
 def _scrape_platform(extra):
@@ -139,8 +142,10 @@ def _cli(cmd: str, extra: list):
         'match':           lambda: _match(extra),
         'recommend':       lambda: _recommend(extra),
         'rate':            _rate,
+        'compare':         _compare,
         'scrapeplatform':  lambda: _scrape_platform(extra),
         'platformrecs':    lambda: _platform_recs(extra),
+        'ui':              _ui,
     }
     fn = dispatch.get(cmd.lower())
     if fn is None:
@@ -151,6 +156,17 @@ def _cli(cmd: str, extra: list):
 
 
 # ── Interactive menu ──────────────────────────────────────────────────────────
+def _ui():
+    try:
+        import fastapi   # noqa: F401
+        import uvicorn   # noqa: F401
+    except ImportError:
+        print("ERROR: The rating UI requires two extra packages.")
+        print(f"Install them by running:\n\n  {sys.executable} -m pip install fastapi uvicorn\n")
+        sys.exit(1)
+    _run('ui/server.py')
+
+
 _MENU = """\
 ============================================================
   WatchNext
@@ -173,6 +189,8 @@ _MENU = """\
     7  Scrape platform carousels
     8  Aggregate platform recommendations
 
+  u  Launch rating UI  (browser, live recommendations)
+
   q  Quit
 
 Choice: """
@@ -191,6 +209,7 @@ def _menu():
         '6': _rate,
         '7': lambda: _scrape_platform([]),
         '8': lambda: _platform_recs([]),
+        'u': _ui,
         'q': lambda: sys.exit(0),
     }
     fn = actions.get(choice)

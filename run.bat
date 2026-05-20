@@ -1,15 +1,20 @@
 @echo off
 setlocal
 
-:: ── activate venv if present ──────────────────────────────────────────────────
-if exist ".venv\Scripts\activate.bat" (
-    call .venv\Scripts\activate.bat
+:: ── prefer venv Python; fall back to system python ──────────────────────────────
+if exist ".venv\Scripts\python.exe" (
+    set PYTHON=.venv\Scripts\python.exe
+) else (
+    set PYTHON=python
 )
 
 :: ── route to the right step ───────────────────────────────────────────────────
 set CMD=%~1
 
 if "%CMD%"==""           goto :all
+if /i "%CMD%"=="Full"      goto :full
+if /i "%CMD%"=="UI"        goto :ui
+if /i "%CMD%"=="Compare"   goto :compare
 if /i "%CMD%"=="Prime"     goto :prime
 if /i "%CMD%"=="Netflix"   goto :netflix
 if /i "%CMD%"=="Process"   goto :process
@@ -21,13 +26,17 @@ if /i "%CMD%"=="PlatformRecs"   goto :platformrecs
 
 echo Unknown command: %CMD%
 echo.
-echo Usage:  run.bat [Prime ^| Netflix ^| Process ^| Match ^| Recommend ^| Rate]
+echo Usage:  run.bat [Full ^| UI ^| Prime ^| Netflix ^| Process ^| Match ^| Recommend ^| Rate]
+echo.
+echo   Full       - Run all 7 steps end-to-end (equivalent to: watchnext full)
+echo   UI         - Launch the rating UI in your browser
+echo   Compare    - Compare all scoring methods side by side (output\scoring_comparison.xlsx)
 echo.
 echo   Phase 1 -- Data extraction:
 echo   Prime      - Scrape Amazon Prime Video watch history
 echo   Netflix    - Scrape Netflix viewing history
 echo   Process    - Clean and consolidate into watch_history.xlsx
-echo   (none)     - Run all three Phase 1 steps in sequence
+echo   (none)     - Run Phase 1 steps only (scrape + consolidate)
 echo.
 echo   Phase 2 -- TMDB recommendations (requires a TMDB API key):
 echo   Match      - Match watch history titles to TMDB  [Step 1]
@@ -59,7 +68,47 @@ echo   --limit N       Only scrape first N titles (for testing)
 echo   --debug         Save screenshots to output\debug\platform_recs\
 goto :done
 
-:: ── run all three steps in sequence ──────────────────────────────────────────
+:: ── run all 7 steps end-to-end ────────────────────────────────────────────────
+:full
+echo ============================================================
+echo  Step 1 of 7 -- Amazon Prime Video
+echo ============================================================
+call :run_prime
+echo.
+echo ============================================================
+echo  Step 2 of 7 -- Netflix
+echo ============================================================
+call :run_netflix
+echo.
+echo ============================================================
+echo  Step 3 of 7 -- Clean and Consolidate
+echo ============================================================
+call :run_process
+echo.
+echo ============================================================
+echo  Step 4 of 7 -- Match titles to TMDB
+echo ============================================================
+call :run_match %2 %3 %4 %5 %6
+echo.
+echo ============================================================
+echo  Step 5 of 7 -- Fetch recommendations
+echo ============================================================
+call :run_recommend %2 %3 %4 %5 %6
+echo.
+echo ============================================================
+echo  Step 6 of 7 -- Re-rank with ratings
+echo ============================================================
+call :run_rate
+echo.
+echo ============================================================
+echo  Step 7 of 7 -- Platform recommendations
+echo ============================================================
+call :run_scrapeplatform %2 %3 %4 %5 %6
+echo.
+call :run_aggplatform
+goto :done
+
+:: ── run Phase 1 steps only ────────────────────────────────────────────────────
 :all
 echo ============================================================
 echo  Step 1 of 3 -- Amazon Prime Video
@@ -75,6 +124,14 @@ echo ============================================================
 echo  Step 3 of 3 -- Clean and Consolidate
 echo ============================================================
 call :run_process
+goto :done
+
+:ui
+%PYTHON% ui\server.py
+goto :done
+
+:compare
+%PYTHON% recommender\compare_scoring.py
 goto :done
 
 :prime
@@ -114,44 +171,44 @@ goto :done
 
 :: ── subroutines ───────────────────────────────────────────────────────────────
 :run_prime
-python scraper.py %*
+%PYTHON% scraper.py %*
 goto :eof
 
 :run_netflix
-python scrapers\netflix_scraper.py %*
+%PYTHON% scrapers\netflix_scraper.py %*
 goto :eof
 
 :run_process
-python cleaners\amazon_cleaner.py
+%PYTHON% cleaners\amazon_cleaner.py
 if errorlevel 1 echo   WARNING: Amazon cleaner reported issues -- continuing.
 echo.
-python cleaners\netflix_cleaner.py
+%PYTHON% cleaners\netflix_cleaner.py
 if errorlevel 1 echo   WARNING: Netflix cleaner reported issues -- continuing.
 echo.
-python consolidate.py
+%PYTHON% consolidate.py
 goto :eof
 
 :run_match
-python recommender\01_match_tmdb.py %*
+%PYTHON% recommender\01_match_tmdb.py %*
 goto :eof
 
 :run_recommend
-python recommender\02_fetch_recs.py %*
+%PYTHON% recommender\02_fetch_recs.py %*
 if errorlevel 1 goto :eof
 echo.
-python recommender\03_aggregate.py
+%PYTHON% recommender\03_aggregate.py
 goto :eof
 
 :run_rate
-python recommender\04_rate_and_refine.py
+%PYTHON% recommender\04_rate_and_refine.py
 goto :eof
 
 :run_scrapeplatform
-python recommender\05_scrape_platform_recs.py %*
+%PYTHON% recommender\05_scrape_platform_recs.py %*
 goto :eof
 
 :run_aggplatform
-python recommender\06_aggregate_platform.py
+%PYTHON% recommender\06_aggregate_platform.py
 goto :eof
 
 :done

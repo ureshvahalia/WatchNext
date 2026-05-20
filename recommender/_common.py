@@ -144,3 +144,122 @@ def tmdb_score_factor(vote_avg) -> float:
     """
     v = vote_avg if vote_avg else 5.0
     return math.log(1 + v)
+
+
+# ── Method G: Hybrid 80/20 × Quality^1.0 ─────────────────────────────────────
+# These constants are shared by 04_rate_and_refine.py and ui/server.py.
+
+QUALITY_CACHE_FILE = ROOT / "recommender" / "cache" / "quality_cache.json"
+
+EXP_SIGMA      = 1.2   # exponential taste-weight steepness
+HYBRID_ALPHA   = 0.8   # fraction from rated-only vs frequency
+RATED_FALLBACK = 15    # min rated titles before rated-only mode engages
+QUALITY_GAMMA  = 1.0   # quality exponent (1.0 = linear)
+IMDB_WEIGHT    = 0.6   # IMDB share of combined quality score
+RT_WEIGHT      = 0.4   # RT Tomatometer share
+
+
+def load_quality_cache() -> dict:
+    if not QUALITY_CACHE_FILE.exists():
+        return {}
+    try:
+        return json.loads(QUALITY_CACHE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def get_quality(tid: str, vote_avg, quality_cache: dict) -> float:
+    """Blended quality in [0, 1].
+
+    Uses IMDB + RT from quality_cache when available; falls back to
+    TMDB vote_average / 10 (correlated at ~0.88 with IMDB).
+    """
+    entry = quality_cache.get(str(tid), {})
+    imdb  = entry.get("imdb_rating")
+    rt    = entry.get("rt_score")
+    if imdb is not None and rt is not None:
+        return IMDB_WEIGHT * (imdb / 10.0) + RT_WEIGHT * (rt / 100.0)
+    if imdb is not None:
+        return imdb / 10.0
+    v = vote_avg if vote_avg else 5.0
+    return v / 10.0
+
+
+def score_method_g(matches: dict, recs: dict, ratings: dict,
+                   watched_ids: set, quality_cache: dict) -> list:
+    """Method G — Hybrid 80/20 × Quality^1.0.
+
+    Taste signal: 80% rated-only (exp weights) + 20% frequency, both normalised.
+    Quality signal: IMDB×0.6 + RT×0.4 from quality_cache, else TMDB/10 proxy.
+    Final score: taste × quality^QUALITY_GAMMA
+
+    Uses exact TMDB-ID matching to exclude watched titles (fast).
+    Falls back to equal-weight frequency when fewer than RATED_FALLBACK
+    titles are rated.
+
+    Returns a list of dicts sorted by score descending:
+      tmdb_id, title, type, year, genre_ids, vote_average,
+      freq, taste, quality, imdb_rating, rt_score, score
+    """
+    from collections import defaultdict
+
+    use_rated = len(ratings) >= RATED_FALLBACK
+
+    rated_wtd: dict = defaultdict(float)
+    freq_all:  dict = defaultdict(int)
+    cand_data: dict = {}
+
+    for name, m in matches.items():
+        if not m.get("matched"):
+            continue
+        sid    = str(m["tmdb_id"])
+        rating = ratings.get(name)
+
+        if use_rated:
+            w = math.exp((rating - 3.0) / EXP_SIGMA) if rating is not None else None
+        else:
+            w = 1.0  # frequency fallback: all titles equal
+
+        seen: set = set()
+        for rec in recs.get(sid, []):
+            tid = str(rec["tmdb_id"])
+            if tid in seen or tid in watched_ids:
+                continue
+            seen.add(tid)
+            if tid not in cand_data:
+                cand_data[tid] = rec
+            freq_all[tid] += 1
+            if w is not None:
+                rated_wtd[tid] += w
+
+    if not cand_data:
+        return []
+
+    max_rated = max(rated_wtd.values(), default=1) or 1
+    max_freq  = max(freq_all.values(),  default=1) or 1
+
+    results = []
+    for tid, d in cand_data.items():
+        r_norm  = rated_wtd.get(tid, 0) / max_rated
+        f_norm  = freq_all[tid] / max_freq
+        taste   = HYBRID_ALPHA * r_norm + (1 - HYBRID_ALPHA) * f_norm
+        va      = d.get("vote_average")
+        quality = get_quality(tid, va, quality_cache)
+        entry   = quality_cache.get(tid, {})
+        results.append({
+            "tmdb_id":     int(tid),
+            "title":       d["title"],
+            "type":        d.get("type", ""),
+            "year":        d.get("year", ""),
+            "genre_ids":   d.get("genre_ids", []),
+            "vote_average": va or 0,
+            "freq":        freq_all[tid],
+            "taste":       round(taste, 4),
+            "quality":     round(quality, 3),
+            "imdb_rating": entry.get("imdb_rating"),
+            "rt_score":    entry.get("rt_score"),
+            "score":       round(taste * (quality ** QUALITY_GAMMA), 4),
+        })
+
+    results.sort(key=lambda x: -x["score"])
+    return results
